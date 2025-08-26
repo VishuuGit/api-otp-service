@@ -1,0 +1,17 @@
+{
+  "name": "api-otp-validation",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "express": "^5.1.0",
+    "mysql2": "^3.14.3"
+  }
+}
