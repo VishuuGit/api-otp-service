@@ -22,6 +22,41 @@ exports.requestOtp = async (req, res) => {
   try {
     await conn.beginTransaction();
 
+    // -------- Per-User Throttle: 3 per 15 minutes --------
+    const [userReqs] = await conn.query(
+      "SELECT created_at FROM otp_requests WHERE user_id=? AND created_at > NOW() - INTERVAL 15 MINUTE ORDER BY created_at ASC",
+      [user_id]
+    );
+
+    if (userReqs.length >= 3) {
+      // oldest request in window → defines cooldown expiry
+      const oldest = new Date(userReqs[0].created_at);
+      const cooldownExpiry = new Date(oldest.getTime() + 15 * 60 * 1000);
+      const remaining = Math.ceil((cooldownExpiry - Date.now()) / 1000);
+      await conn.rollback();
+      return res.status(429).json({
+        error: "Too many requests for this user",
+        retry_after: remaining > 0 ? remaining : 0
+      });
+    }
+
+    // -------- Per-IP Throttle: 8 per 15 minutes --------
+    const [ipReqs] = await conn.query(
+      "SELECT created_at FROM otp_requests WHERE ip=? AND created_at > NOW() - INTERVAL 15 MINUTE ORDER BY created_at ASC",
+      [ip]
+    );
+
+    if (ipReqs.length >= 8) {
+      const oldest = new Date(ipReqs[0].created_at);
+      const cooldownExpiry = new Date(oldest.getTime() + 15 * 60 * 1000);
+      const remaining = Math.ceil((cooldownExpiry - Date.now()) / 1000);
+      await conn.rollback();
+      return res.status(429).json({
+        error: "Too many requests from this IP",
+        retry_after: remaining > 0 ? remaining : 0
+      });
+    }
+
     // check idempotency
     const [idemRows] = await conn.query(
       "SELECT * FROM idempotency WHERE idempotency_key=? AND created_at > NOW() - INTERVAL 10 MINUTE",
